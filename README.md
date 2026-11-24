@@ -31,8 +31,8 @@ Set `NAV_MODE` in `src/nav/config.ts` to `'flat-tabs'`, or build with `VITE_NAV_
 
 Tabs marked **idea** were raised but not decided; **placeholder** means nothing has been chosen yet.
 
-- Sidebar tabs for Partnership, Health, Children and Creativity aren't settled. Current stand-ins: Partnership (Dating, Development), Health (one placeholder), Children (Kids > All kids, Daughter 1, Daughter 2), Creativity (Home improvements, Travel, Music).
-- Daughters' names and their page tabs (Development plan, School, Activities are stand-ins).
+- Sidebar tabs for Partnership, Health, Children and Creativity aren't settled. Current stand-ins: Partnership (Dating, Development), Health (one placeholder), Children (Kids > All kids, Lila, Ellie, Chloe), Creativity (Home improvements, Travel, Music).
+- Page tabs under each kid (Development plan, School, Activities are stand-ins).
 - Where the shared calendar and "doings" sit relative to the area filter. Currently an "Always visible" section under the sidebar, outside the filter.
 - Whether a promise created here auto-schedules in I'm Doing Now or lands as "pending scheduling."
 - Whether the five-area nav sticks (see the swap above).

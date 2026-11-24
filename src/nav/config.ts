@@ -52,12 +52,12 @@ export const navConfig: NavConfig = {
       label: 'Kids',
       area: 'children',
       status: 'placeholder',
-      description: 'Children sidebar tabs are not settled. Names below are placeholders.',
+      description: 'One page per kid, plus an All kids view. Page tabs under each kid are placeholders.',
       children: [
         { id: 'all-kids', label: 'All kids', pageTabs: [{ id: 'overview', label: 'Overview' }] },
         {
-          id: 'daughter-1',
-          label: 'Daughter 1',
+          id: 'lila',
+          label: 'Lila',
           pageTabs: [
             { id: 'development-plan', label: 'Development plan' },
             { id: 'school', label: 'School' },
@@ -65,8 +65,17 @@ export const navConfig: NavConfig = {
           ],
         },
         {
-          id: 'daughter-2',
-          label: 'Daughter 2',
+          id: 'ellie',
+          label: 'Ellie',
+          pageTabs: [
+            { id: 'development-plan', label: 'Development plan' },
+            { id: 'school', label: 'School' },
+            { id: 'activities', label: 'Activities' },
+          ],
+        },
+        {
+          id: 'chloe',
+          label: 'Chloe',
           pageTabs: [
             { id: 'development-plan', label: 'Development plan' },
             { id: 'school', label: 'School' },
