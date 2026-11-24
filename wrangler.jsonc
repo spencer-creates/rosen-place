@@ -1,0 +1,50 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "rosen-place",
+  "main": "server/worker.ts",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    // The Worker checks the passkey session before any file is served.
+    "run_worker_first": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "rosen-place",
+      // Fill in from `npx wrangler d1 create rosen-place` (see README).
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // Local development values. Production values go in env.production below.
+  "vars": {
+    "RP_ID": "localhost",
+    "ORIGIN": "http://localhost:8787",
+    "SESSION_TTL_HOURS": "12"
+  },
+  "env": {
+    "production": {
+      "routes": [{ "pattern": "home.example.com", "custom_domain": true }],
+      "vars": {
+        // Passkeys are bound to this hostname. Changing it later means everyone re-registers.
+        "RP_ID": "home.example.com",
+        "ORIGIN": "https://home.example.com",
+        "SESSION_TTL_HOURS": "12"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "rosen-place",
+          "database_id": "00000000-0000-0000-0000-000000000000",
+          "migrations_dir": "migrations"
+        }
+      ]
+    }
+  }
+}

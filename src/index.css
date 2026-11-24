@@ -150,3 +150,9 @@ h1 .badge { margin-left: 0; font-size: 12px; }
   .sidebar { width: auto; border-right: 0; border-bottom: 1px solid var(--border); }
   .main { padding: 24px 16px; }
 }
+
+/* Signed-in person + sign out, right side of the top bar */
+.account { margin-left: auto; display: flex; align-items: center; gap: 12px; white-space: nowrap; font-size: 0.875rem; }
+.account-name { color: var(--muted); }
+.account-signout { padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; }
+.account-signout:hover { background: var(--accent-soft); }
