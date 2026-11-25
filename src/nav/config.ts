@@ -46,15 +46,15 @@ export const navConfig: NavConfig = {
       description: 'Sidebar tabs for Health are not settled yet.',
     },
 
-    // Children: structure ready for each daughter and kids' accounts later.
+    // Children: one page per child, plus All. Ready for each child's accounts later.
     {
-      id: 'kids',
-      label: 'Kids',
+      id: 'children',
+      label: 'Children',
       area: 'children',
       status: 'placeholder',
-      description: 'One page per kid, plus an All kids view. Page tabs under each kid are placeholders.',
+      description: 'One page per child, plus All. Page tabs under each child are placeholders.',
       children: [
-        { id: 'all-kids', label: 'All kids', pageTabs: [{ id: 'overview', label: 'Overview' }] },
+        { id: 'all', label: 'All', pageTabs: [{ id: 'overview', label: 'Overview' }] },
         {
           id: 'lila',
           label: 'Lila',

@@ -51,6 +51,12 @@ describe('nav config', () => {
     expect(() => validateNavConfig(bad)).toThrow(/goals/);
   });
 
+  it('rejects the word "kids"', () => {
+    const bad = structuredClone(navConfig);
+    bad.tabs[0].label = 'Kids';
+    expect(() => validateNavConfig(bad)).toThrow(/kids/);
+  });
+
   it('nav mode swap is config only', () => {
     const flat: NavConfig = { ...navConfig, mode: 'flat-tabs' };
     expect(() => validateNavConfig(flat)).not.toThrow();

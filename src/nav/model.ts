@@ -62,6 +62,7 @@ export function validateNavConfig(config: NavConfig): void {
 
   const words = JSON.stringify(config).toLowerCase();
   if (/\bgoals?\b/.test(words)) errors.push('use "commitments" and "promises", not "goals"');
+  if (/\bkids?\b/.test(words)) errors.push('use "children" or their names, not "kids"');
 
   if (errors.length) throw new Error(`Invalid nav config:\n- ${errors.join('\n- ')}`);
 }
