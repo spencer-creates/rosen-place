@@ -2,6 +2,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import type { NavConfig } from '../nav/types';
 import { FUTURE_PATH, orderedTabs, tabPath, tabsForFilter, type Filter } from '../nav/model';
 import { useFilter } from '../nav/FilterContext';
+import { AccountMenu } from './AccountMenu';
 
 /** Layer 1. Renders either the area filter or plain tabs, based on config.mode. */
 export function TopBar({ config }: { config: NavConfig }) {
@@ -48,6 +49,7 @@ function AreaFilterBar({ config }: { config: NavConfig }) {
           </li>
         ))}
       </ul>
+      <AccountMenu />
     </nav>
   );
 }
@@ -66,6 +68,7 @@ function FlatTabBar({ config }: { config: NavConfig }) {
           </li>
         ))}
       </ul>
+      <AccountMenu />
     </nav>
   );
 }
