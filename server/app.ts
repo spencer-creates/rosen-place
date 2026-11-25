@@ -2,12 +2,13 @@ import { Hono, type Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import * as webauthn from '@simplewebauthn/server';
 import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/server';
-import { fromBase64Url, sha256, toBase64Url } from './crypto';
-import { CHALLENGE_TTL_MS, Store, type Db, type User } from './store';
+import { fromBase64Url, sha256, toBase64Url } from './crypto.js';
+import type { Db } from './db.js';
+import { CHALLENGE_COOKIE, SECURITY_HEADERS, SESSION_COOKIE } from './headers.js';
+import { CHALLENGE_TTL_MS, Store, type User } from './store.js';
 
 export interface Env {
   DB: Db;
-  ASSETS: { fetch(req: Request): Promise<Response> };
   /** The site's hostname, e.g. "home.rosen.family". Passkeys are bound to it. */
   RP_ID: string;
   /** The exact origin, e.g. "https://home.rosen.family". */
@@ -23,28 +24,10 @@ export type WebAuthn = Pick<
 
 type AppEnv = { Bindings: Env; Variables: { store: Store; user: User } };
 
-export const SESSION_COOKIE = '__Host-rp_session';
-export const CHALLENGE_COOKIE = '__Host-rp_challenge';
-export const LOGIN_PATH = '/_login/';
-
-const SECURITY_HEADERS: Record<string, string> = {
-  'Content-Security-Policy':
-    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; " +
-    "font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
-  'Strict-Transport-Security': 'max-age=63072000; includeSubDomains',
-  'X-Content-Type-Options': 'nosniff',
-  'X-Frame-Options': 'DENY',
-  'Referrer-Policy': 'no-referrer',
-  'Cross-Origin-Opener-Policy': 'same-origin',
-  'Cross-Origin-Resource-Policy': 'same-origin',
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
-  'X-Robots-Tag': 'noindex, nofollow',
-};
-
 export function createApp(opts: { webauthn?: WebAuthn; now?: () => number } = {}) {
   const wa = opts.webauthn ?? webauthn;
   const now = opts.now ?? Date.now;
-  const app = new Hono<AppEnv>();
+  const app = new Hono<AppEnv>().basePath('/api');
 
   const ttlMs = (env: Env) => Number(env.SESSION_TTL_HOURS || '12') * 3_600_000;
   const ip = (c: Context<AppEnv>) => c.req.header('CF-Connecting-IP') ?? null;
@@ -71,21 +54,18 @@ export function createApp(opts: { webauthn?: WebAuthn; now?: () => number } = {}
 
   const fail = (c: Context<AppEnv>, status: 400 | 401 | 403, message: string) => c.json({ error: message }, status);
 
-  // Every response gets security headers. API and HTML responses are never cached.
+  // Every API response gets security headers and is never cached.
   app.use('*', async (c, next) => {
     c.set('store', new Store(c.env.DB, now));
     await next();
-    // Asset responses can have immutable headers, so copy into a fresh Response.
     const res = new Response(c.res.body, c.res);
     for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.headers.set(k, v);
-    const type = res.headers.get('Content-Type') ?? '';
-    if (res.status !== 200 || c.req.path.startsWith('/api/') || type.includes('text/html')) res.headers.set('Cache-Control', 'no-store');
-    else res.headers.set('Cache-Control', 'private, max-age=3600');
+    res.headers.set('Cache-Control', 'no-store');
     c.res = res;
   });
 
   // Cross-site request protection on top of SameSite=Strict cookies.
-  app.use('/api/*', async (c, next) => {
+  app.use('*', async (c, next) => {
     if (c.req.method !== 'GET' && c.req.method !== 'HEAD' && c.req.header('Origin') !== c.env.ORIGIN) {
       return fail(c, 403, 'Bad origin');
     }
@@ -94,7 +74,7 @@ export function createApp(opts: { webauthn?: WebAuthn; now?: () => number } = {}
 
   // ---------- registration (invite only) ----------
 
-  app.post('/api/auth/register/options', async (c) => {
+  app.post('/auth/register/options', async (c) => {
     const { invite } = await c.req.json<{ invite?: string }>().catch(() => ({ invite: undefined }));
     if (typeof invite !== 'string' || invite.length < 20) return fail(c, 400, 'This invite link is not valid.');
     const inviteHash = await sha256(invite);
@@ -118,7 +98,7 @@ export function createApp(opts: { webauthn?: WebAuthn; now?: () => number } = {}
     return c.json(options);
   });
 
-  app.post('/api/auth/register/verify', async (c) => {
+  app.post('/auth/register/verify', async (c) => {
     const challenge = await takeChallenge(c, 'register');
     if (!challenge?.invite_hash) return fail(c, 400, 'That took too long. Open the invite link and try again.');
     const user = await c.var.store.userForInvite(challenge.invite_hash);
@@ -160,13 +140,13 @@ export function createApp(opts: { webauthn?: WebAuthn; now?: () => number } = {}
 
   // ---------- sign in ----------
 
-  app.post('/api/auth/login/options', async (c) => {
+  app.post('/auth/login/options', async (c) => {
     const options = await wa.generateAuthenticationOptions({ rpID: c.env.RP_ID, userVerification: 'required' });
     setChallengeCookie(c, await c.var.store.saveChallenge({ challenge: options.challenge, kind: 'login', invite_hash: null }));
     return c.json(options);
   });
 
-  app.post('/api/auth/login/verify', async (c) => {
+  app.post('/auth/login/verify', async (c) => {
     const challenge = await takeChallenge(c, 'login');
     if (!challenge) return fail(c, 400, 'That took too long. Please try again.');
     const response = await c.req.json<AuthenticationResponseJSON>().catch(() => null);
@@ -205,34 +185,19 @@ export function createApp(opts: { webauthn?: WebAuthn; now?: () => number } = {}
     return c.json({ ok: true, name: user.name });
   });
 
-  // ---------- the gate: everything below needs a valid session ----------
+  // ---------- signed-in only (the middleware gate checks too; this is the second lock) ----------
 
   app.use('*', async (c, next) => {
-    const path = c.req.path;
-    if (isPublicPath(path)) {
-      await next();
-      // Never let the SPA fallback leak the app's HTML on a mistyped login asset path.
-      if (path !== LOGIN_PATH && path !== `${LOGIN_PATH}index.html` && c.res.headers.get('Content-Type')?.includes('text/html')) {
-        c.res = c.text('Not found', 404);
-      }
-      return;
-    }
     const token = getCookie(c, SESSION_COOKIE);
     const user = token ? await c.var.store.userForSession(token) : null;
-    if (!user) {
-      if (token) deleteCookie(c, SESSION_COOKIE, { path: '/', secure: true });
-      if (path.startsWith('/api/')) return fail(c, 401, 'Sign in required.');
-      const wantsHtml = c.req.method === 'GET' && (c.req.header('Accept') ?? '').includes('text/html');
-      if (!wantsHtml) return c.text('Sign in required.', 401);
-      return c.redirect(`${LOGIN_PATH}?next=${encodeURIComponent(path)}`, 302);
-    }
+    if (!user) return fail(c, 401, 'Sign in required.');
     c.set('user', user);
     await next();
   });
 
-  app.get('/api/auth/me', (c) => c.json({ name: c.var.user.name, role: c.var.user.role }));
+  app.get('/auth/me', (c) => c.json({ name: c.var.user.name, role: c.var.user.role }));
 
-  app.post('/api/auth/logout', async (c) => {
+  app.post('/auth/logout', async (c) => {
     const token = getCookie(c, SESSION_COOKIE);
     if (token) await c.var.store.deleteSession(token);
     deleteCookie(c, SESSION_COOKIE, { path: '/', secure: true });
@@ -240,14 +205,7 @@ export function createApp(opts: { webauthn?: WebAuthn; now?: () => number } = {}
     return c.json({ ok: true });
   });
 
-  app.all('/api/*', (c) => c.json({ error: 'Not found' }, 404));
-
-  // Signed in: serve the app (static files, with SPA fallback configured in wrangler.jsonc).
-  app.all('*', (c) => c.env.ASSETS.fetch(c.req.raw));
+  app.all('*', (c) => c.json({ error: 'Not found' }, 404));
 
   return app;
-}
-
-function isPublicPath(path: string): boolean {
-  return path === LOGIN_PATH || path.startsWith(LOGIN_PATH);
 }

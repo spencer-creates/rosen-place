@@ -15,5 +15,5 @@
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true
   },
-  "include": ["server", "login", "vite.login.config.ts"]
+  "include": ["server", "login", "api", "scripts", "middleware.ts", "vite.login.config.ts"]
 }

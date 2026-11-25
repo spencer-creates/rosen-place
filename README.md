@@ -15,45 +15,48 @@ npm run build
 
 ## Security: passkey sign-in
 
-The whole app sits behind a passkey (Face ID, Touch ID, Windows Hello or a security key). It runs on Cloudflare: a Worker checks the session on **every** request before any page, script or file is sent, and keeps people, passkeys and sessions in a D1 database. Without a valid session you only get the sign-in page.
+The whole app sits behind a passkey (Face ID, Touch ID, Windows Hello or a security key). It runs on Vercel: Routing Middleware (`middleware.ts`) checks the session on **every** request, static files included, before anything is sent. People, passkeys and sessions live in Postgres (Neon, added from the Vercel Marketplace). Without a valid session you only get the sign-in page.
 
-- **No sign-up.** A person can only add a passkey with a one-time invite link, made from the command line by someone with access to the Cloudflare account. Links work once and expire (24h by default).
+- **No sign-up.** A person can only add a passkey with a one-time invite link, made from the command line by someone with the database connection string. Links work once and expire (24h by default).
 - **Passkeys only.** No passwords, no email codes, nothing to phish. User verification (biometric or device PIN) is required.
 - **Sessions** last 12 hours (`SESSION_TTL_HOURS`), live in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie, and only a hash of the token is stored. Sign out ends the session on the server.
 - **Revocation** is instant: `revoke` blocks the person and ends their open sessions.
-- Strict headers on every response (CSP, HSTS, no framing, `noindex`), origin checks on every POST, and an audit log of sign-ins.
+- Two locks on the API: the middleware gate, and the API function checks the session again. Strict headers on every response (CSP, HSTS, no framing, `noindex`), origin checks on every POST, and an audit log of sign-ins.
 
 ### Who has access
 
+Run these from the repo after `vercel env pull --environment=production .env.local` (it brings the production `DATABASE_URL` and `ORIGIN`):
+
 ```bash
-npm run admin -- invite "Spencer" --owner --remote   # prints a one-time link; open it on your phone/laptop
-npm run admin -- invite "Spencer" --owner --remote   # again for each extra device
-npm run admin -- invite "Sara" --remote              # when Sara should get in
-npm run admin -- list --remote                       # who has access, passkey count, last sign-in
-npm run admin -- log --remote                        # recent sign-in events
-npm run admin -- revoke "Sara" --remote              # lock someone out now (restore "Sara" to undo)
-npm run admin -- forget-passkeys "Spencer" --remote  # lost device: delete passkeys, then invite again
+npm run admin -- invite "Spencer" --owner     # prints a one-time link; open it on your phone/laptop
+npm run admin -- invite "Spencer" --owner     # again for each extra device
+npm run admin -- invite "Sara"                # when Sara should get in
+npm run admin -- list                         # who has access, passkey count, last sign-in
+npm run admin -- log                          # recent sign-in events
+npm run admin -- revoke "Sara"                # lock someone out now (restore "Sara" to undo)
+npm run admin -- forget-passkeys "Spencer"    # lost device: delete passkeys, then invite again
 ```
 
-Send invite links privately. Anyone holding an unused link could register a passkey with it until it expires or is used.
+Send invite links privately. Anyone holding an unused link could register a passkey with it until it expires or is used. Keep `.env.local` off shared machines: the database string is the key to the allowlist.
 
 ### First deploy (one time)
 
-1. Create a free Cloudflare account and add the domain you want (e.g. `home.yourdomain.com`).
-2. `npx wrangler login`
-3. `npx wrangler d1 create rosen-place`, then paste the `database_id` into both places in `wrangler.jsonc`.
-4. In `wrangler.jsonc` → `env.production`, set the route, `RP_ID` (the hostname) and `ORIGIN` (`https://` + hostname). Passkeys are tied to that hostname, so pick it once.
-5. `npm run deploy`
-6. `npm run admin -- invite "Spencer" --owner --remote` and open the link.
+1. In Vercel, **Add New → Project**, import `spencer-creates/rosen-place`. The defaults from `vercel.json` are right.
+2. In the project, **Storage → Create Database → Neon (Postgres)** and connect it. This sets `DATABASE_URL`.
+3. **Settings → Domains**: add the address you want (e.g. `home.yourdomain.com`).
+4. **Settings → Environment Variables** (Production): `RP_ID` = that hostname (`home.yourdomain.com`), `ORIGIN` = `https://home.yourdomain.com`. Passkeys are tied to that hostname, so pick it once.
+5. **Settings → Deployment Protection**: turn on Vercel Authentication for preview deployments (the default), so preview URLs stay private too.
+6. On your computer: `npm i -g vercel`, `vercel link`, `vercel env pull --environment=production .env.local`, `npm run db:migrate`, then redeploy.
+7. `npm run admin -- invite "Spencer" --owner` and open the link on your phone.
 
-Optional second lock: put Cloudflare Access (free for small teams) in front of the hostname, allowing only your email. Then someone would need your email inbox **and** your passkey.
+Preview deployments use a different hostname, so passkeys only work on the production domain.
 
 ### Local
 
 ```bash
 npm run dev          # UI only, no sign-in (for working on screens)
-npm run dev:secure   # full build behind the passkey gate at http://localhost:8787
-npm run admin -- invite "Spencer" --owner --local
+npm run dev:secure   # `vercel dev`: full app behind the gate. Set Development env vars RP_ID=localhost,
+                     # ORIGIN=http://localhost:3000 and a separate Neon branch for DATABASE_URL first.
 ```
 
 ## Navigation (three layers, max)
